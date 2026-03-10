@@ -107,11 +107,14 @@ def fetch_webshop(url, max_chars=12000):
     return combined[:max_chars] if combined else ""
 
 # ── OpenRouter API hívás ─────────────────────────────────────────────
+# Fallback modell lista - openrouter/free automatikusan választ elérhető ingyenes modellt
 OPENROUTER_MODELS = [
+    "openrouter/auto",
     "meta-llama/llama-3.3-70b-instruct:free",
+    "meta-llama/llama-4-scout:free",
+    "deepseek/deepseek-chat:free",
     "mistralai/mistral-7b-instruct:free",
     "google/gemma-3-27b-it:free",
-    "microsoft/phi-4-reasoning:free",
 ]
 
 def openrouter_call(api_key, prompt, retries=2):
@@ -137,9 +140,16 @@ def openrouter_call(api_key, prompt, retries=2):
                 )
                 data = resp.json()
                 if "error" in data:
-                    err = data["error"].get("message","")
+                    err = str(data["error"].get("message",""))
                     last_error = f"{model}: {err}"
+                    # Ha a modell nem létezik, próbáljuk a következőt
+                    if "No endpoints" in err or "not found" in err.lower() or "404" in err:
+                        break
+                    # Rate limit - várunk és próbáljuk újra
                     if "rate" in err.lower() or "quota" in err.lower():
+                        if attempt == 0:
+                            time.sleep(8)
+                            continue
                         break
                     if attempt == 0:
                         time.sleep(5)
