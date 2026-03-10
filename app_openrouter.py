@@ -381,5 +381,7 @@ if st.session_state.history:
         c1,c2,c3,c4=st.columns([3,1,1,1])
         with c1: st.markdown(f"<span style='font-size:13px;color:#c8d8f0'>{h['partner']} · {h['domain']}</span>", unsafe_allow_html=True)
         with c2: st.markdown(f"<span style='color:#5ee8ff;font-size:12px'>AQ: {h['aq_pct']}%</span>", unsafe_allow_html=True)
-        with c3: st.markdown(f"<span style='color:{colors.get(h[\"tier\"],\"#fff\")};font-weight:700'>{h['total']} pt</span>", unsafe_allow_html=True)
+        with c3:
+            tier_color = colors.get(h["tier"], "#fff")
+            st.markdown(f"<span style='color:{tier_color};font-weight:700'>{h['total']} pt</span>", unsafe_allow_html=True)
         with c4: st.markdown(f"<span style='color:#7a9fc0;font-size:11px'>{h['date']}</span>", unsafe_allow_html=True)
