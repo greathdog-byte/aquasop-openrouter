@@ -207,42 +207,44 @@ if scan_btn and domain_input:
         else:
             st.write(f"✓ {len(webshop_text)} karakter letöltve")
 
-        # 2. Márkafelismerés Pythonban (gyors, API nélkül)
-        st.write("🔍 Ismert márkák azonosítása...")
-        found = {"aquashop":[], "aqualing":[], "fluidra":[], "egyeb":[]}
+        # 2. Python gyors ellenőrzés a letöltött szövegben
+        st.write("🔍 Márkafelismerés folyamatban...")
+        found_in_text = {"aquashop":[], "aqualing":[], "fluidra":[]}
         text_lower = webshop_text.lower()
         for src in ["aquashop","aqualing","fluidra"]:
             for brand in BRAND_DB[src]["brands"]:
                 if brand.lower() in text_lower:
-                    found[src].append(brand)
+                    found_in_text[src].append(brand)
 
-        st.write(f"✓ Aquashop: {len(found['aquashop'])} | Aqualing: {len(found['aqualing'])} | Fluidra: {len(found['fluidra'])}")
+        # 3. AI márkafelismerés + pontozás (az AI látja a webshopot)
+        st.write("🤖 AI elemzés és márkafelismerés...")
 
-        # 3. AI pontozás
-        st.write("🤖 AI pontozás és elemzés...")
+        aq_brands_list = ", ".join(BRAND_DB["aquashop"]["brands"])
+        al_brands_list = ", ".join(BRAND_DB["aqualing"]["brands"])
+        fl_brands_list = ", ".join(BRAND_DB["fluidra"]["brands"])
 
-        aq_score = 0 if len(found['aquashop'])==0 else 10 if len(found['aquashop'])<=2 else 20 if len(found['aquashop'])<=4 else 30 if len(found['aquashop'])<=7 else 40
+        prompt = f"""Elemezd ezt a magyar medence/spa webshopot: {raw}
 
-        prompt = f"""Elemezd ezt a magyar medence/spa webshopot és pontozd.
+WEBSHOP TARTALOM (amit sikerült letölteni):
+{webshop_text[:5000]}
 
-WEBSHOP: {domain}
-WEBSHOP TARTALOM (részlet):
-{webshop_text[:6000]}
+FELADATOD:
+1. A fenti szövegből és a webshop ismeretéből azonosítsd a márkákat
+2. Ellenőrizd melyik márka szerepel a következő listákból:
 
-MÁR AZONOSÍTOTT MÁRKÁK:
-- Aquashop márkák ({len(found['aquashop'])} db): {", ".join(found['aquashop']) if found['aquashop'] else "nincs"}
-- Aqualing márkák ({len(found['aqualing'])} db): {", ".join(found['aqualing']) if found['aqualing'] else "nincs"}
-- Fluidra márkák ({len(found['fluidra'])} db): {", ".join(found['fluidra']) if found['fluidra'] else "nincs"}
+AQUASHOP márkák (keresd ezeket): {aq_brands_list}
+AQUALING márkák (keresd ezeket): {al_brands_list}  
+FLUIDRA márkák (keresd ezeket): {fl_brands_list}
 
-PONTOZÁS:
-- exkluziv_termekek: KÖTELEZŐEN {aq_score} pont ({len(found['aquashop'])} Aquashop márka alapján)
-- kinalat_teljessege (max 25): medence/spa termékkör mélysége a szöveg alapján
-- tartalmi_minoseg (max 20): leírások minősége a szöveg alapján
-- webshop_aktivitas (max 10): frissesség, árak jelenléte
-- seo_elkotelezettsege (max 5): kulcsszavak optimalizáltsága
+PONTOZÁSI SZABÁLYOK:
+- exkluziv_termekek (max 40): 0 AQ márka=0p, 1-2=10p, 3-4=20p, 5-7=30p, 8+=40p
+- kinalat_teljessege (max 25): medence/spa termékkör szélessége
+- tartalmi_minoseg (max 20): leírások, képek, műszaki adatok minősége
+- webshop_aktivitas (max 10): naprakész árak, készletjelzés
+- seo_elkotelezettsege (max 5): kulcsszó-optimalizáltság
 
-Válaszolj KIZÁRÓLAG valid JSON-ban:
-{{"partner_neve":"webshop neve","osszefoglalo":"2-3 mondatos magyar összefoglaló","scores":{{"exkluziv_termekek":{aq_score},"kinalat_teljessege":0,"tartalmi_minoseg":0,"webshop_aktivitas":0,"seo_elkotelezettsege":0}},"egyeb_markak":["egyéb márkák a szövegből"],"bizonyitekok":{{"talalt_termekek":"mit találtál","kinalat_szelessege":"kategóriák","tartalom_minosege":"leírások minősége","aktivitas_frissesseg":"árak és frissesség"}},"javasolt_teendok":"konkrét fejlesztési javaslatok"}}"""
+Válaszolj KIZÁRÓLAG valid JSON-ban, semmi más:
+{{"partner_neve":"string","osszefoglalo":"2-3 mondatos magyar összefoglaló","markak_lista":{{"aquashop":["talált AQ márkák"],"aqualing":["talált AL márkák"],"fluidra":["talált FL márkák"],"egyeb":["egyéb márkák"]}},"scores":{{"exkluziv_termekek":0,"kinalat_teljessege":0,"tartalmi_minoseg":0,"webshop_aktivitas":0,"seo_elkotelezettsege":0}},"bizonyitekok":{{"talalt_termekek":"konkrét márkák és termékek","kinalat_szelessege":"kategóriák","tartalom_minosege":"leírások minősége","aktivitas_frissesseg":"árak és frissesség"}},"javasolt_teendok":"konkrét fejlesztési javaslatok"}}"""
 
         try:
             raw_text, used_model = openrouter_call(api_key, prompt)
@@ -266,9 +268,29 @@ Válaszolj KIZÁRÓLAG valid JSON-ban:
             st.error("Hibás JSON válasz. Próbáld újra!")
             st.stop()
 
-        # Eredmény összerakása
+        # AI által talált márkák + Python ellenőrzés összevonása
+        ai_markak = ai_data.get("markak_lista", {})
+        
+        def merge_brands(ai_list, py_list):
+            """AI és Python találatok összevonása, duplikátumok nélkül."""
+            combined = list(ai_list) if ai_list else []
+            for b in py_list:
+                if b not in combined:
+                    combined.append(b)
+            return combined
+
+        found_aq = merge_brands(ai_markak.get("aquashop",[]), found_in_text["aquashop"])
+        found_al = merge_brands(ai_markak.get("aqualing",[]), found_in_text["aqualing"])
+        found_fl = merge_brands(ai_markak.get("fluidra",[]), found_in_text["fluidra"])
+        found_neu = ai_markak.get("egyeb", [])
+
+        st.write(f"✓ Talált márkák – Aquashop: {len(found_aq)} | Aqualing: {len(found_al)} | Fluidra: {len(found_fl)}")
+
+        # Exkluzív termékek pontja Python számolja
+        aq_score = 0 if len(found_aq)==0 else 10 if len(found_aq)<=2 else 20 if len(found_aq)<=4 else 30 if len(found_aq)<=7 else 40
         scores = ai_data.get("scores", {})
-        scores["exkluziv_termekek"] = aq_score  # Python számolja, nem AI
+        scores["exkluziv_termekek"] = aq_score
+
         calc_total = sum(int(v) for v in scores.values())
         if calc_total >= 85:   tier_key = "PLATINUM"
         elif calc_total >= 65: tier_key = "GOLD"
@@ -276,7 +298,6 @@ Válaszolj KIZÁRÓLAG valid JSON-ban:
         elif calc_total >= 20: tier_key = "BASIC"
         else:                  tier_key = "INAKTÍV"
 
-        egyeb = ai_data.get("egyeb_markak", [])
         result = {
             "domain": domain,
             "partner_neve": ai_data.get("partner_neve", domain),
@@ -284,10 +305,10 @@ Válaszolj KIZÁRÓLAG valid JSON-ban:
             "scores": scores,
             "total": min(100, calc_total),
             "tier": tier_key,
-            "markak": {"aquashop": found["aquashop"], "aqualing": found["aqualing"],
-                       "fluidra": found["fluidra"], "egyeb": egyeb},
-            "markaok_szama": {"aquashop": len(found["aquashop"]), "aqualing": len(found["aqualing"]),
-                              "fluidra": len(found["fluidra"]), "egyeb": len(egyeb)},
+            "markak": {"aquashop": found_aq, "aqualing": found_al,
+                       "fluidra": found_fl, "egyeb": found_neu},
+            "markaok_szama": {"aquashop": len(found_aq), "aqualing": len(found_al),
+                              "fluidra": len(found_fl), "egyeb": len(found_neu)},
             "bizonyitekok": ai_data.get("bizonyitekok",{}),
             "javasolt_teendok": ai_data.get("javasolt_teendok",""),
         }
