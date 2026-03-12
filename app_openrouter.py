@@ -393,12 +393,10 @@ if scan_btn and domain_input:
                 if (b in text_lower or b_slug in text_lower or b_nospace in text_lower):
                     target.append(brand)
 
-        # 3. AI márkafelismerés + pontozás (az AI látja a webshopot)
-        st.write("🤖 AI elemzés és márkafelismerés...")
-
-        aq_brands_list = ", ".join(BRAND_DB["aquashop"]["brands"])
-        al_brands_list = ", ".join(BRAND_DB["aqualing"]["brands"])
-        fl_brands_list = ", ".join(BRAND_DB["fluidra"]["brands"])
+        # 3. AI pontozás (márkák már megvannak)
+        aq_score = 0 if len(found_aq)==0 else 10 if len(found_aq)<=2 else 20 if len(found_aq)<=4 else 30 if len(found_aq)<=7 else 40
+        st.write(f"✓ Megerősített márkák – Aquashop: {len(found_aq)} | Aqualing: {len(found_al)} | Fluidra: {len(found_fl)}")
+        st.write("🤖 AI pontozás...")
 
         prompt = f"""Elemezd ezt a magyar medence/spa webshopot és pontozd.
 
