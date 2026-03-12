@@ -186,27 +186,64 @@ def fetch_webshop(url, max_chars=18000):
                   BRAND_DB["aqualing"]["brands"] +
                   BRAND_DB["fluidra"]["brands"])
 
-    found_brands_text = []
+    # Márka keresés - csak valódi terméktalálat számít
+    confirmed_brands = []
     for brand in all_brands:
-        brand_slug = brand.replace(" ", "+")
-        search_patterns = [
+        brand_found = False
+        search_urls = [
             f"{base}/?search={quote(brand)}",
             f"{base}/search?q={quote(brand)}",
             f"{base}/?q={quote(brand)}",
-            f"{base}/termekek/{brand.lower().replace(' ','-')}",
-            f"{base}/{brand.lower().replace(' ','-')}",
+            f"{base}/kereses?q={quote(brand)}",
         ]
-        for surl in search_patterns:
+        for surl in search_urls:
             try:
                 r = requests.get(surl, headers=headers, timeout=5)
-                if r.status_code == 200 and brand.lower() in r.text.lower():
-                    found_brands_text.append(f"[{brand} keresés: TALÁLAT]\n{brand} termékek megtalálva a webshopban.")
+                if r.status_code != 200:
+                    continue
+                soup = BeautifulSoup(r.text, "html.parser")
+                # Csak navigáción és footeren KÍVÜL keresünk
+                for tag in soup(["nav","footer","header","script","style"]):
+                    tag.decompose()
+                # "Nincs találat" típusú szövegek kizárása
+                page_text = soup.get_text().lower()
+                no_result_phrases = ["nincs találat", "no results", "0 termék", 
+                                     "nem található", "0 találat", "nincsenek termékek"]
+                if any(p in page_text for p in no_result_phrases):
+                    continue
+                # Valódi találat: a márkanév szerepel ÉS van termék listaelem
+                product_indicators = ["termek", "product", "price", "ár", "ft", "kosár", "cart", "db"]
+                has_products = any(p in page_text for p in product_indicators)
+                if brand.lower() in page_text and has_products:
+                    confirmed_brands.append(brand)
+                    brand_found = True
                     break
             except:
                 pass
 
-    if found_brands_text:
-        texts.extend(found_brands_text)
+        # Ha keresés nem ment, próbáljuk közvetlen URL-lel
+        if not brand_found:
+            direct_urls = [
+                f"{base}/{brand.lower().replace(' ','-')}",
+                f"{base}/termekek/{brand.lower().replace(' ','-')}",
+                f"{base}/marka/{brand.lower().replace(' ','-')}",
+            ]
+            for durl in direct_urls:
+                try:
+                    r = requests.get(durl, headers=headers, timeout=5)
+                    if r.status_code == 200:
+                        soup = BeautifulSoup(r.text, "html.parser")
+                        for tag in soup(["nav","footer","header","script","style"]):
+                            tag.decompose()
+                        page_text = soup.get_text().lower()
+                        if brand.lower() in page_text:
+                            confirmed_brands.append(brand)
+                            break
+                except:
+                    pass
+
+    if confirmed_brands:
+        texts.append(f"[Keresési találatok - MEGERŐSÍTETT márkák]\n{', '.join(confirmed_brands)}")
 
     # 4. Sitemap URL-ek - csak az URL szövegét nézzük, nem töltjük le mind
     sitemap_urls = fetch_sitemap_urls(base, headers, max_urls=500)
@@ -344,20 +381,17 @@ if scan_btn and domain_input:
         else:
             st.write(f"✓ {len(webshop_text)} karakter letöltve")
 
-        # 2. Python márkafelismerés - szöveg + URL + keresési találatok
+        # 2. Python márkafelismerés - CSAK a valódi keresési találatok alapján
         st.write("🔍 Márkafelismerés folyamatban...")
-        found_in_text = {"aquashop":[], "aqualing":[], "fluidra":[]}
         text_lower = webshop_text.lower()
-        for src in ["aquashop","aqualing","fluidra"]:
+        found_aq, found_al, found_fl = [], [], []
+        for src, target in [("aquashop", found_aq), ("aqualing", found_al), ("fluidra", found_fl)]:
             for brand in BRAND_DB[src]["brands"]:
                 b = brand.lower()
                 b_slug = b.replace(" ", "-")
                 b_nospace = b.replace(" ", "")
-                # Keresés több formában: normál, kötőjeles, szóköz nélküli, TALÁLAT jelzés
-                if (b in text_lower or b_slug in text_lower or
-                    b_nospace in text_lower or
-                    f"{brand} keresés: TALÁLAT".lower() in text_lower):
-                    found_in_text[src].append(brand)
+                if (b in text_lower or b_slug in text_lower or b_nospace in text_lower):
+                    target.append(brand)
 
         # 3. AI márkafelismerés + pontozás (az AI látja a webshopot)
         st.write("🤖 AI elemzés és márkafelismerés...")
@@ -366,33 +400,26 @@ if scan_btn and domain_input:
         al_brands_list = ", ".join(BRAND_DB["aqualing"]["brands"])
         fl_brands_list = ", ".join(BRAND_DB["fluidra"]["brands"])
 
-        prompt = f"""Elemezd ezt a magyar medence/spa webshopot: {raw}
+        prompt = f"""Elemezd ezt a magyar medence/spa webshopot és pontozd.
 
-WEBSHOP TARTALOM (letöltve):
+WEBSHOP: {raw}
+WEBSHOP TARTALOM:
 {webshop_text[:5000]}
 
-MÁRKAADATBÁZIS - SZIGORÚ KATEGORIZÁLÁS:
-AQUASHOP márkák (CSAK ezek kerülhetnek aquashop-ba): {aq_brands_list}
-AQUALING márkák (CSAK ezek kerülhetnek aqualing-ba): {al_brands_list}
-FLUIDRA márkák (CSAK ezek kerülhetnek fluidra-ba): {fl_brands_list}
+A MÁRKÁK MÁR AZONOSÍTVA (ne változtass rajtuk, ne adj hozzá újakat):
+- Aquashop márkák ({len(found_aq)} db): {", ".join(found_aq) if found_aq else "nincs"}
+- Aqualing márkák ({len(found_al)} db): {", ".join(found_al) if found_al else "nincs"}
+- Fluidra márkák ({len(found_fl)} db): {", ".join(found_fl) if found_fl else "nincs"}
 
-FONTOS SZABÁLYOK:
-- Egy márka CSAK abba a kategóriába kerülhet ahol szerepel a fenti listában
-- Az Intex, Bestway, Pontaqua, PoolTrend = AQUALING (soha nem Aquashop!)
-- A Fairland, InverPro, Dolphin, Maytronics, Saci = AQUASHOP
-- Az Astralpool, Zodiac, Bayrol, GRE = FLUIDRA
-- Ha egy márka nem szerepel egyik listában sem = egyeb
-- Ne találj ki márkákat - csak a szövegben ténylegesen szereplőket listázd!
-
-PONTOZÁS:
-- exkluziv_termekek (max 40): 0 AQ márka=0p, 1-2=10p, 3-4=20p, 5-7=30p, 8+=40p
-- kinalat_teljessege (max 25): medence/spa termékkör szélessége
-- tartalmi_minoseg (max 20): leírások, képek, műszaki adatok
-- webshop_aktivitas (max 10): naprakész árak, készletjelzés
+CSAK A PONTOZÁS A FELADATOD:
+- exkluziv_termekek: PONTOSAN {aq_score} (már kiszámítva, ne változtasd!)
+- kinalat_teljessege (max 25): medence/spa termékkör szélessége a tartalom alapján
+- tartalmi_minoseg (max 20): leírások, képek, műszaki adatok minősége
+- webshop_aktivitas (max 10): naprakész árak, készletjelzés megléte
 - seo_elkotelezettsege (max 5): kulcsszó-optimalizáltság
 
 Válaszolj KIZÁRÓLAG valid JSON-ban:
-{{"partner_neve":"string","osszefoglalo":"2-3 mondatos magyar összefoglaló","markak_lista":{{"aquashop":["CSAK fenti AQ listából"],"aqualing":["CSAK fenti AL listából"],"fluidra":["CSAK fenti FL listából"],"egyeb":["egyéb márkák"]}},"scores":{{"exkluziv_termekek":0,"kinalat_teljessege":0,"tartalmi_minoseg":0,"webshop_aktivitas":0,"seo_elkotelezettsege":0}},"bizonyitekok":{{"talalt_termekek":"konkrét márkák","kinalat_szelessege":"kategóriák","tartalom_minosege":"leírások","aktivitas_frissesseg":"árak"}},"javasolt_teendok":"konkrét javaslatok"}}"""
+{{"partner_neve":"string","osszefoglalo":"2-3 mondatos magyar összefoglaló","scores":{{"exkluziv_termekek":{aq_score},"kinalat_teljessege":0,"tartalmi_minoseg":0,"webshop_aktivitas":0,"seo_elkotelezettsege":0}},"bizonyitekok":{{"talalt_termekek":"mit láttál a webshopban","kinalat_szelessege":"kategóriák és termékek","tartalom_minosege":"leírások minősége","aktivitas_frissesseg":"árak és készlet"}},"javasolt_teendok":"konkrét fejlesztési javaslatok"}}"""
 
         try:
             raw_text, used_model = openrouter_call(api_key, prompt)
@@ -471,9 +498,9 @@ Válaszolj KIZÁRÓLAG valid JSON-ban:
             "total": min(100, calc_total),
             "tier": tier_key,
             "markak": {"aquashop": found_aq, "aqualing": found_al,
-                       "fluidra": found_fl, "egyeb": found_neu},
+                       "fluidra": found_fl, "egyeb": []},
             "markaok_szama": {"aquashop": len(found_aq), "aqualing": len(found_al),
-                              "fluidra": len(found_fl), "egyeb": len(found_neu)},
+                              "fluidra": len(found_fl), "egyeb": 0},
             "bizonyitekok": ai_data.get("bizonyitekok",{}),
             "javasolt_teendok": ai_data.get("javasolt_teendok",""),
         }
