@@ -164,46 +164,69 @@ def fetch_brand_search(base_url, headers, brand):
             pass
     return False
 
-def fetch_webshop(url, max_chars=15000):
-    """Letölti a webshop tartalmát több forrásból."""
+def fetch_webshop(url, max_chars=18000):
+    """Letölti a webshop tartalmát - márka-célzott kereséssel."""
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0"}
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, quote
     parsed = urlparse(url)
     base = f"{parsed.scheme}://{parsed.netloc}"
     texts = []
-
-    # 0. Ha konkrét aloldalt adtak meg, azt is letöltjük
-    if parsed.path and parsed.path != "/":
-        t = fetch_page_text(url, headers, 4000)
-        if t: texts.append(f"[Megadott oldal: {url}]\n{t}")
 
     # 1. Főoldal
     t = fetch_page_text(base, headers, 3000)
     if t: texts.append(f"[Főoldal]\n{t}")
 
-    # 2. Sitemap URL-ek (márkaneveket tartalmaznak az URL-ekben)
+    # 2. Ha konkrét aloldalt adtak meg
+    if parsed.path and parsed.path not in ["/", ""]:
+        t = fetch_page_text(url, headers, 3000)
+        if t: texts.append(f"[Megadott oldal]\n{t}")
+
+    # 3. Minden ismert márkára keresés a webshopban
+    all_brands = (BRAND_DB["aquashop"]["brands"] +
+                  BRAND_DB["aqualing"]["brands"] +
+                  BRAND_DB["fluidra"]["brands"])
+
+    found_brands_text = []
+    for brand in all_brands:
+        brand_slug = brand.replace(" ", "+")
+        search_patterns = [
+            f"{base}/?search={quote(brand)}",
+            f"{base}/search?q={quote(brand)}",
+            f"{base}/?q={quote(brand)}",
+            f"{base}/termekek/{brand.lower().replace(' ','-')}",
+            f"{base}/{brand.lower().replace(' ','-')}",
+        ]
+        for surl in search_patterns:
+            try:
+                r = requests.get(surl, headers=headers, timeout=5)
+                if r.status_code == 200 and brand.lower() in r.text.lower():
+                    found_brands_text.append(f"[{brand} keresés: TALÁLAT]\n{brand} termékek megtalálva a webshopban.")
+                    break
+            except:
+                pass
+
+    if found_brands_text:
+        texts.extend(found_brands_text)
+
+    # 4. Sitemap URL-ek - csak az URL szövegét nézzük, nem töltjük le mind
     sitemap_urls = fetch_sitemap_urls(base, headers, max_urls=500)
     if sitemap_urls:
         sitemap_text = " ".join(sitemap_urls)
-        texts.append(f"[Sitemap URL-ek ({len(sitemap_urls)} db)]\n{sitemap_text[:5000]}")
-
-    # 3. Termékoldalakon keresés: minden ismert márka nevével
-    all_brands = (BRAND_DB["aquashop"]["brands"] + BRAND_DB["aqualing"]["brands"] +
-                  BRAND_DB["fluidra"]["brands"])
-    # Sitemap URL-ekből azokat töltjük le ahol márkanév van az URL-ben
-    brand_product_urls = []
-    for u in sitemap_urls:
-        u_lower = u.lower()
+        texts.append(f"[Sitemap URL-ek ({len(sitemap_urls)} db)]\n{sitemap_text[:6000]}")
+        # Márkák az URL-ekben
+        brand_hits = []
         for brand in all_brands:
-            if brand.lower().replace(" ", "-") in u_lower or brand.lower().replace(" ","") in u_lower:
-                brand_product_urls.append(u)
-                break
-    for purl in brand_product_urls[:10]:
-        t = fetch_page_text(purl, headers, 1000)
-        if t: texts.append(f"[{purl}]\n{t}")
+            b_slug = brand.lower().replace(" ", "-")
+            b_nospace = brand.lower().replace(" ", "")
+            if any(b_slug in u.lower() or b_nospace in u.lower() for u in sitemap_urls):
+                brand_hits.append(brand)
+        if brand_hits:
+            texts.append(f"[Sitemap márka találatok]\n" + ", ".join(brand_hits))
 
-    # 4. Fix aloldalak próbálása
-    for path in ["/termekek", "/kategoriak", "/medence", "/spa", "/szuro", "/szivattyu", "/hotpump", "/hoszivattyu"]:
+    # 5. Fix aloldalak
+    for path in ["/termekek", "/kategoriak", "/medence", "/spa",
+                 "/szuro", "/szivattyu", "/hotpump", "/hoszivattyu",
+                 "/robot", "/vegyszer", "/fotozar"]:
         t = fetch_page_text(base + path, headers, 1500)
         if t: texts.append(f"[{path}]\n{t}")
 
@@ -321,17 +344,19 @@ if scan_btn and domain_input:
         else:
             st.write(f"✓ {len(webshop_text)} karakter letöltve")
 
-        # 2. Python márkafelismerés a letöltött szövegben (URL-ek + szöveg)
+        # 2. Python márkafelismerés - szöveg + URL + keresési találatok
         st.write("🔍 Márkafelismerés folyamatban...")
         found_in_text = {"aquashop":[], "aqualing":[], "fluidra":[]}
         text_lower = webshop_text.lower()
         for src in ["aquashop","aqualing","fluidra"]:
             for brand in BRAND_DB[src]["brands"]:
-                # Keresés a szövegben és URL-ekben (kötőjeles és szóköz nélküli formában is)
                 b = brand.lower()
                 b_slug = b.replace(" ", "-")
                 b_nospace = b.replace(" ", "")
-                if b in text_lower or b_slug in text_lower or b_nospace in text_lower:
+                # Keresés több formában: normál, kötőjeles, szóköz nélküli, TALÁLAT jelzés
+                if (b in text_lower or b_slug in text_lower or
+                    b_nospace in text_lower or
+                    f"{brand} keresés: TALÁLAT".lower() in text_lower):
                     found_in_text[src].append(brand)
 
         # 3. AI márkafelismerés + pontozás (az AI látja a webshopot)
