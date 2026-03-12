@@ -85,24 +85,90 @@ if "api_key" not in st.session_state:
     st.session_state.api_key = get_api_key()
 
 # ── Webshop tartalom letöltése ───────────────────────────────────────
-def fetch_webshop(url, max_chars=12000):
-    """Letölti a webshop szövegét több oldalról."""
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    texts = []
-    pages_to_try = [url, url.rstrip("/") + "/termekek", url.rstrip("/") + "/kategoriak",
-                    url.rstrip("/") + "/medence", url.rstrip("/") + "/spa"]
-    for page_url in pages_to_try[:3]:
+def fetch_page_text(url, headers, max_chars=3000):
+    """Egyetlen oldal szövegének letöltése."""
+    try:
+        r = requests.get(url, headers=headers, timeout=8)
+        if r.status_code != 200:
+            return ""
+        soup = BeautifulSoup(r.text, "html.parser")
+        for tag in soup(["script","style","nav","footer","header"]):
+            tag.decompose()
+        text = soup.get_text(separator=" ", strip=True)
+        return re.sub(r'\s+', ' ', text)[:max_chars]
+    except:
+        return ""
+
+def fetch_sitemap_urls(base_url, headers, max_urls=30):
+    """Sitemap-ből termék URL-eket gyűjt."""
+    urls = []
+    for sitemap in ["/sitemap.xml", "/sitemap_index.xml", "/sitemap-products.xml"]:
         try:
-            r = requests.get(page_url, headers=headers, timeout=8)
+            r = requests.get(base_url.rstrip("/") + sitemap, headers=headers, timeout=6)
             if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                for tag in soup(["script","style","nav","footer","header"]):
-                    tag.decompose()
-                text = soup.get_text(separator=" ", strip=True)
-                text = re.sub(r'\s+', ' ', text)
-                texts.append(f"[{page_url}]\n{text[:4000]}")
+                locs = re.findall(r'<loc>(.*?)</loc>', r.text)
+                urls.extend(locs[:max_urls])
+                if urls:
+                    break
         except:
             pass
+    return urls
+
+def search_brands_in_sitemap(base_url, headers, brand_list):
+    """Sitemap URL-ekben keresi a márkaneveket."""
+    found = []
+    urls = fetch_sitemap_urls(base_url, headers, max_urls=200)
+    urls_text = " ".join(urls).lower()
+    for brand in brand_list:
+        if brand.lower().replace(" ", "-") in urls_text or brand.lower().replace(" ", "") in urls_text:
+            found.append(brand)
+    return found
+
+def fetch_brand_search(base_url, headers, brand):
+    """Márkanév alapú keresés a webshopban."""
+    search_urls = [
+        f"{base_url.rstrip('/')}/?search={brand}",
+        f"{base_url.rstrip('/')}/search?q={brand}",
+        f"{base_url.rstrip('/')}/?q={brand}",
+        f"{base_url.rstrip('/')}/termekek?search={brand}",
+    ]
+    for surl in search_urls:
+        try:
+            r = requests.get(surl, headers=headers, timeout=6)
+            if r.status_code == 200 and brand.lower() in r.text.lower():
+                return True
+        except:
+            pass
+    return False
+
+def fetch_webshop(url, max_chars=15000):
+    """Letölti a webshop tartalmát több forrásból."""
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0"}
+    base = url.rstrip("/")
+    texts = []
+
+    # 1. Főoldal
+    t = fetch_page_text(base, headers, 3000)
+    if t: texts.append(f"[Főoldal]\n{t}")
+
+    # 2. Sitemap URL-ek szövege (márkaneveket tartalmaz)
+    sitemap_urls = fetch_sitemap_urls(base, headers, max_urls=500)
+    if sitemap_urls:
+        sitemap_text = " ".join(sitemap_urls)
+        texts.append(f"[Sitemap URL-ek ({len(sitemap_urls)} db)]\n{sitemap_text[:4000]}")
+
+    # 3. Néhány termékoldal letöltése a sitemapból
+    product_urls = [u for u in sitemap_urls if any(x in u for x in
+                    ['termek','product','shop','-p-','/p/','kategoria','category'])][:8]
+    for purl in product_urls:
+        t = fetch_page_text(purl, headers, 1500)
+        if t: texts.append(f"[{purl}]\n{t}")
+
+    # 4. Fix aloldalak próbálása
+    for path in ["/termekek", "/kategoriak", "/medence", "/spa", "/szuro", "/szivattyu"]:
+        t = fetch_page_text(base + path, headers, 1500)
+        if t: texts.append(f"[{path}]\n{t}")
+
     combined = "\n\n".join(texts)
     return combined[:max_chars] if combined else ""
 
@@ -217,13 +283,17 @@ if scan_btn and domain_input:
         else:
             st.write(f"✓ {len(webshop_text)} karakter letöltve")
 
-        # 2. Python gyors ellenőrzés a letöltött szövegben
+        # 2. Python márkafelismerés a letöltött szövegben (URL-ek + szöveg)
         st.write("🔍 Márkafelismerés folyamatban...")
         found_in_text = {"aquashop":[], "aqualing":[], "fluidra":[]}
         text_lower = webshop_text.lower()
         for src in ["aquashop","aqualing","fluidra"]:
             for brand in BRAND_DB[src]["brands"]:
-                if brand.lower() in text_lower:
+                # Keresés a szövegben és URL-ekben (kötőjeles és szóköz nélküli formában is)
+                b = brand.lower()
+                b_slug = b.replace(" ", "-")
+                b_nospace = b.replace(" ", "")
+                if b in text_lower or b_slug in text_lower or b_nospace in text_lower:
                     found_in_text[src].append(brand)
 
         # 3. AI márkafelismerés + pontozás (az AI látja a webshopot)
