@@ -99,20 +99,43 @@ def fetch_page_text(url, headers, max_chars=3000):
     except:
         return ""
 
-def fetch_sitemap_urls(base_url, headers, max_urls=30):
-    """Sitemap-ből termék URL-eket gyűjt."""
-    urls = []
-    for sitemap in ["/sitemap.xml", "/sitemap_index.xml", "/sitemap-products.xml"]:
+def fetch_sitemap_urls(base_url, headers, max_urls=500):
+    """Sitemap-ből URL-eket gyűjt - Unas és általános webshopokhoz."""
+    all_urls = []
+    # Unas és általános sitemap helyek
+    sitemap_paths = ["/sitemap.xml", "/sitemap_index.xml", "/sitemap-products.xml",
+                     "/sitemap-termekek.xml", "/xml_sitemap.xml"]
+    for path in sitemap_paths:
         try:
-            r = requests.get(base_url.rstrip("/") + sitemap, headers=headers, timeout=6)
-            if r.status_code == 200:
-                locs = re.findall(r'<loc>(.*?)</loc>', r.text)
-                urls.extend(locs[:max_urls])
-                if urls:
-                    break
+            r = requests.get(base_url.rstrip("/") + path, headers=headers, timeout=8)
+            if r.status_code != 200:
+                continue
+            # Sitemap index: aloldalak feltérképezése
+            sub_sitemaps = re.findall(r'<loc>(.*?sitemap.*?)</loc>', r.text, re.IGNORECASE)
+            if sub_sitemaps:
+                for sub in sub_sitemaps[:5]:
+                    try:
+                        sr = requests.get(sub, headers=headers, timeout=6)
+                        if sr.status_code == 200:
+                            locs = re.findall(r'<loc>(.*?)</loc>', sr.text)
+                            all_urls.extend(locs)
+                    except:
+                        pass
+            # Közvetlen URL-ek
+            locs = re.findall(r'<loc>(.*?)</loc>', r.text)
+            all_urls.extend(locs)
+            if all_urls:
+                break
         except:
             pass
-    return urls
+    # Deduplikálás
+    seen = set()
+    unique = []
+    for u in all_urls:
+        if u not in seen:
+            seen.add(u)
+            unique.append(u)
+    return unique[:max_urls]
 
 def search_brands_in_sitemap(base_url, headers, brand_list):
     """Sitemap URL-ekben keresi a márkaneveket."""
@@ -144,28 +167,43 @@ def fetch_brand_search(base_url, headers, brand):
 def fetch_webshop(url, max_chars=15000):
     """Letölti a webshop tartalmát több forrásból."""
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0"}
-    base = url.rstrip("/")
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    base = f"{parsed.scheme}://{parsed.netloc}"
     texts = []
+
+    # 0. Ha konkrét aloldalt adtak meg, azt is letöltjük
+    if parsed.path and parsed.path != "/":
+        t = fetch_page_text(url, headers, 4000)
+        if t: texts.append(f"[Megadott oldal: {url}]\n{t}")
 
     # 1. Főoldal
     t = fetch_page_text(base, headers, 3000)
     if t: texts.append(f"[Főoldal]\n{t}")
 
-    # 2. Sitemap URL-ek szövege (márkaneveket tartalmaz)
+    # 2. Sitemap URL-ek (márkaneveket tartalmaznak az URL-ekben)
     sitemap_urls = fetch_sitemap_urls(base, headers, max_urls=500)
     if sitemap_urls:
         sitemap_text = " ".join(sitemap_urls)
-        texts.append(f"[Sitemap URL-ek ({len(sitemap_urls)} db)]\n{sitemap_text[:4000]}")
+        texts.append(f"[Sitemap URL-ek ({len(sitemap_urls)} db)]\n{sitemap_text[:5000]}")
 
-    # 3. Néhány termékoldal letöltése a sitemapból
-    product_urls = [u for u in sitemap_urls if any(x in u for x in
-                    ['termek','product','shop','-p-','/p/','kategoria','category'])][:8]
-    for purl in product_urls:
-        t = fetch_page_text(purl, headers, 1500)
+    # 3. Termékoldalakon keresés: minden ismert márka nevével
+    all_brands = (BRAND_DB["aquashop"]["brands"] + BRAND_DB["aqualing"]["brands"] +
+                  BRAND_DB["fluidra"]["brands"])
+    # Sitemap URL-ekből azokat töltjük le ahol márkanév van az URL-ben
+    brand_product_urls = []
+    for u in sitemap_urls:
+        u_lower = u.lower()
+        for brand in all_brands:
+            if brand.lower().replace(" ", "-") in u_lower or brand.lower().replace(" ","") in u_lower:
+                brand_product_urls.append(u)
+                break
+    for purl in brand_product_urls[:10]:
+        t = fetch_page_text(purl, headers, 1000)
         if t: texts.append(f"[{purl}]\n{t}")
 
     # 4. Fix aloldalak próbálása
-    for path in ["/termekek", "/kategoriak", "/medence", "/spa", "/szuro", "/szivattyu"]:
+    for path in ["/termekek", "/kategoriak", "/medence", "/spa", "/szuro", "/szivattyu", "/hotpump", "/hoszivattyu"]:
         t = fetch_page_text(base + path, headers, 1500)
         if t: texts.append(f"[{path}]\n{t}")
 
@@ -305,26 +343,31 @@ if scan_btn and domain_input:
 
         prompt = f"""Elemezd ezt a magyar medence/spa webshopot: {raw}
 
-WEBSHOP TARTALOM (amit sikerült letölteni):
+WEBSHOP TARTALOM (letöltve):
 {webshop_text[:5000]}
 
-FELADATOD:
-1. A fenti szövegből és a webshop ismeretéből azonosítsd a márkákat
-2. Ellenőrizd melyik márka szerepel a következő listákból:
+MÁRKAADATBÁZIS - SZIGORÚ KATEGORIZÁLÁS:
+AQUASHOP márkák (CSAK ezek kerülhetnek aquashop-ba): {aq_brands_list}
+AQUALING márkák (CSAK ezek kerülhetnek aqualing-ba): {al_brands_list}
+FLUIDRA márkák (CSAK ezek kerülhetnek fluidra-ba): {fl_brands_list}
 
-AQUASHOP márkák (keresd ezeket): {aq_brands_list}
-AQUALING márkák (keresd ezeket): {al_brands_list}  
-FLUIDRA márkák (keresd ezeket): {fl_brands_list}
+FONTOS SZABÁLYOK:
+- Egy márka CSAK abba a kategóriába kerülhet ahol szerepel a fenti listában
+- Az Intex, Bestway, Pontaqua, PoolTrend = AQUALING (soha nem Aquashop!)
+- A Fairland, InverPro, Dolphin, Maytronics, Saci = AQUASHOP
+- Az Astralpool, Zodiac, Bayrol, GRE = FLUIDRA
+- Ha egy márka nem szerepel egyik listában sem = egyeb
+- Ne találj ki márkákat - csak a szövegben ténylegesen szereplőket listázd!
 
-PONTOZÁSI SZABÁLYOK:
+PONTOZÁS:
 - exkluziv_termekek (max 40): 0 AQ márka=0p, 1-2=10p, 3-4=20p, 5-7=30p, 8+=40p
 - kinalat_teljessege (max 25): medence/spa termékkör szélessége
-- tartalmi_minoseg (max 20): leírások, képek, műszaki adatok minősége
+- tartalmi_minoseg (max 20): leírások, képek, műszaki adatok
 - webshop_aktivitas (max 10): naprakész árak, készletjelzés
 - seo_elkotelezettsege (max 5): kulcsszó-optimalizáltság
 
-Válaszolj KIZÁRÓLAG valid JSON-ban, semmi más:
-{{"partner_neve":"string","osszefoglalo":"2-3 mondatos magyar összefoglaló","markak_lista":{{"aquashop":["talált AQ márkák"],"aqualing":["talált AL márkák"],"fluidra":["talált FL márkák"],"egyeb":["egyéb márkák"]}},"scores":{{"exkluziv_termekek":0,"kinalat_teljessege":0,"tartalmi_minoseg":0,"webshop_aktivitas":0,"seo_elkotelezettsege":0}},"bizonyitekok":{{"talalt_termekek":"konkrét márkák és termékek","kinalat_szelessege":"kategóriák","tartalom_minosege":"leírások minősége","aktivitas_frissesseg":"árak és frissesség"}},"javasolt_teendok":"konkrét fejlesztési javaslatok"}}"""
+Válaszolj KIZÁRÓLAG valid JSON-ban:
+{{"partner_neve":"string","osszefoglalo":"2-3 mondatos magyar összefoglaló","markak_lista":{{"aquashop":["CSAK fenti AQ listából"],"aqualing":["CSAK fenti AL listából"],"fluidra":["CSAK fenti FL listából"],"egyeb":["egyéb márkák"]}},"scores":{{"exkluziv_termekek":0,"kinalat_teljessege":0,"tartalmi_minoseg":0,"webshop_aktivitas":0,"seo_elkotelezettsege":0}},"bizonyitekok":{{"talalt_termekek":"konkrét márkák","kinalat_szelessege":"kategóriák","tartalom_minosege":"leírások","aktivitas_frissesseg":"árak"}},"javasolt_teendok":"konkrét javaslatok"}}"""
 
         try:
             raw_text, used_model = openrouter_call(api_key, prompt)
@@ -351,18 +394,35 @@ Válaszolj KIZÁRÓLAG valid JSON-ban, semmi más:
         # AI által talált márkák + Python ellenőrzés összevonása
         ai_markak = ai_data.get("markak_lista", {})
         
-        def merge_brands(ai_list, py_list):
-            """AI és Python találatok összevonása, duplikátumok nélkül."""
-            combined = list(ai_list) if ai_list else []
-            for b in py_list:
-                if b not in combined:
-                    combined.append(b)
+        # Validált márka lista - csak az adatbázisban szereplő márkák kerülnek be
+        aq_valid = {b.lower() for b in BRAND_DB["aquashop"]["brands"]}
+        al_valid = {b.lower() for b in BRAND_DB["aqualing"]["brands"]}
+        fl_valid = {b.lower() for b in BRAND_DB["fluidra"]["brands"]}
+
+        def validated_merge(ai_list, py_list, valid_set, brand_list):
+            """Összevonja az AI és Python találatokat, csak az adatbázisban szereplőket fogadja el."""
+            combined = []
+            seen = set()
+            all_candidates = list(ai_list or []) + list(py_list or [])
+            for b in all_candidates:
+                if b.lower() in valid_set and b not in seen:
+                    # Visszaadjuk az eredeti (helyes kapitalizációjú) márkanevet
+                    for orig in brand_list:
+                        if orig.lower() == b.lower():
+                            combined.append(orig)
+                            seen.add(b)
+                            break
             return combined
 
-        found_aq = merge_brands(ai_markak.get("aquashop",[]), found_in_text["aquashop"])
-        found_al = merge_brands(ai_markak.get("aqualing",[]), found_in_text["aqualing"])
-        found_fl = merge_brands(ai_markak.get("fluidra",[]), found_in_text["fluidra"])
-        found_neu = ai_markak.get("egyeb", [])
+        found_aq = validated_merge(ai_markak.get("aquashop",[]), found_in_text["aquashop"],
+                                   aq_valid, BRAND_DB["aquashop"]["brands"])
+        found_al = validated_merge(ai_markak.get("aqualing",[]), found_in_text["aqualing"],
+                                   al_valid, BRAND_DB["aqualing"]["brands"])
+        found_fl = validated_merge(ai_markak.get("fluidra",[]), found_in_text["fluidra"],
+                                   fl_valid, BRAND_DB["fluidra"]["brands"])
+        # Egyéb márkák: nem kerülhetnek bele ismert márkák
+        all_known = aq_valid | al_valid | fl_valid
+        found_neu = [b for b in ai_markak.get("egyeb",[]) if b.lower() not in all_known]
 
         st.write(f"✓ Talált márkák – Aquashop: {len(found_aq)} | Aqualing: {len(found_al)} | Fluidra: {len(found_fl)}")
 
