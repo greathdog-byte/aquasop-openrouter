@@ -442,37 +442,7 @@ Válaszolj KIZÁRÓLAG valid JSON-ban:
             st.stop()
 
         # AI által talált márkák + Python ellenőrzés összevonása
-        ai_markak = ai_data.get("markak_lista", {})
-        
-        # Validált márka lista - csak az adatbázisban szereplő márkák kerülnek be
-        aq_valid = {b.lower() for b in BRAND_DB["aquashop"]["brands"]}
-        al_valid = {b.lower() for b in BRAND_DB["aqualing"]["brands"]}
-        fl_valid = {b.lower() for b in BRAND_DB["fluidra"]["brands"]}
-
-        def validated_merge(ai_list, py_list, valid_set, brand_list):
-            """Összevonja az AI és Python találatokat, csak az adatbázisban szereplőket fogadja el."""
-            combined = []
-            seen = set()
-            all_candidates = list(ai_list or []) + list(py_list or [])
-            for b in all_candidates:
-                if b.lower() in valid_set and b not in seen:
-                    # Visszaadjuk az eredeti (helyes kapitalizációjú) márkanevet
-                    for orig in brand_list:
-                        if orig.lower() == b.lower():
-                            combined.append(orig)
-                            seen.add(b)
-                            break
-            return combined
-
-        found_aq = validated_merge(ai_markak.get("aquashop",[]), found_in_text["aquashop"],
-                                   aq_valid, BRAND_DB["aquashop"]["brands"])
-        found_al = validated_merge(ai_markak.get("aqualing",[]), found_in_text["aqualing"],
-                                   al_valid, BRAND_DB["aqualing"]["brands"])
-        found_fl = validated_merge(ai_markak.get("fluidra",[]), found_in_text["fluidra"],
-                                   fl_valid, BRAND_DB["fluidra"]["brands"])
-        # Egyéb márkák: nem kerülhetnek bele ismert márkák
-        all_known = aq_valid | al_valid | fl_valid
-        found_neu = [b for b in ai_markak.get("egyeb",[]) if b.lower() not in all_known]
+        # Márkák a Python detekcióból (found_aq, found_al, found_fl már megvannak)
 
         st.write(f"✓ Talált márkák – Aquashop: {len(found_aq)} | Aqualing: {len(found_al)} | Fluidra: {len(found_fl)}")
 
