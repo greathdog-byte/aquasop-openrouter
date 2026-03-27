@@ -42,20 +42,15 @@ input,textarea{background:#121d30!important;color:#e8f0fe!important;border-color
 BRAND_DB = {
     "aquashop": {
         "label":"Aquashop","color":"#00d4ff","chip":"chip-aq",
-        "brands":["Fairland","InverPro","Inver-X","WarriorX","Maytronics","Dolphin","Liberty",
-                  "Saci","Gemas","Microdos","BSV","BSV Touch","Sopremapool","Flagpool",
-                  "Hidroten","Nature Works","Aquajet"]
+        "brands":["Fairland","InverPro"]
     },
     "aqualing": {
         "label":"Aqualing","color":"#f5c842","chip":"chip-al",
-        "brands":["Pontaqua","PoolTrend","Dekortrend","Bestway","Intex","Kokido",
-                  "Hydro Force","HydroForce","Gladiator","Gladiator SUP","Wellis",
-                  "VitalSpa","Azton","Wattsup"]
+        "brands":["Pontaqua","PoolTrend"]
     },
     "fluidra": {
         "label":"Fluidra-Kerex","color":"#ff6b35","chip":"chip-fl",
-        "brands":["Astralpool","AstralPool","Astral","Zodiac","Bayrol","GRE","Pahlen",
-                  "Speck","ZDS","Kripsol","Fluidra","Kerex","iAquaLink","Omniflex"]
+        "brands":["Astralpool","AstralPool","Astral"]
     }
 }
 
