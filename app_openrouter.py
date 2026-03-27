@@ -40,7 +40,6 @@ input,textarea{background:#121d30!important;color:#e8f0fe!important;border-color
 
 # ── Márkaadatbázis ───────────────────────────────────────────────────
 BRAND_DB = {
-  {
     "aquashop": {
         "label": "Aquashop",
         "color": "#00d4ff",
@@ -87,8 +86,6 @@ BRAND_DB = {
     }
 }
 
-    }
-}
 
 TIER_CONFIG = {
     "PLATINUM":{"emoji":"🥇","color":"#00d4ff","label":"PLATINUM Partner"},
