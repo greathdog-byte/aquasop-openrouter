@@ -48,8 +48,7 @@ BRAND_DB = {
             "Aquarius", "Ariona", "pacific", "filtrex", "barent", "bari", "ocean", "indico", "baltico", "fhb", "trb", "iwash", "i-wash",
             "nature works", "inverpro", "invereco", "invermaster", "invermax", "isaver", "isaver+", "aquajet mini", "saci optima",
             "saci winner", "mini streamer", "saci bravus", "saci supra", "saci kontra", "saci magnus", "fairland", "x20", "x23", "x26",
-            "iphcr", "bpncr", "Comfortline Inverter", "INVERX20", "INVERX23", "INVERX26", "inverX jumbo", "Asin Aqua", "Aseko", "aseko eox",
-            "
+            "iphcr", "bpncr", "Comfortline Inverter", "INVERX20", "INVERX23", "INVERX26", "inverX jumbo", "Asin Aqua", "Aseko", "aseko eox"
         ]
     },
     "aqualing": {
@@ -58,7 +57,7 @@ BRAND_DB = {
         "chip": "chip-al",
         "brands": [
             "KPB", "genkinno", "Hayward", "kripsol", "Haogenplast", "pontaqua", "MAXFLO", "powerflo", "geOS PRO", "k-FLO", "e-FLO", "kS-evO",
-            "kripsol", "aquaram", "ONDINA", "PRIMe", "kAPR", "kAN", "SILeNSOR PRO", "davey", "e-veCtOR", "NIgeR", "kARPA", "ANtRACItA", "LOtUS", "PegASO",
+            "kripsol", "aquaram", "ONDINA", "PRIMe", "kAPR", "kAN", "SILeNSOR PRO", "davey", "e-veCtOR", "NIgeR", "kARPA", "ANtRACItA", "LOtUS", "PegASO"
         ]
     },
     "fluidra": {
@@ -68,7 +67,7 @@ BRAND_DB = {
         "brands": [
             "Astralpool", "Zodiac", "aquaboost", "Aiper", "Cellpool", "Cantabric", "Aster", "Atlas", "Bilbao", "Artic", "Artic Plus", "oslo",
             "Emaux", "SMG", "MFS", "Sierra", "Európa", "Praktik", "Dryden Aqua", "DGS", "Victoria smart", "Victoria Plus", "Sena", "Maxim", "Shark",
-            "Senext", "MArlin", "Aquaforte", "Mr. Perfect", "Aquark Mr. Silence", "AQUABOOST INVERBASIC", "OPTIMA INVERTER PLUS", "Aquaforte Exclusive",
+            "Senext", "MArlin", "Aquaforte", "Mr. Perfect", "Aquark Mr. Silence", "AQUABOOST INVERBASIC", "OPTIMA INVERTER PLUS", "Aquaforte Exclusive"
         ]
     }
 }
