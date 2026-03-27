@@ -41,32 +41,23 @@ input,textarea{background:#121d30!important;color:#e8f0fe!important;border-color
 # ── Márkaadatbázis ───────────────────────────────────────────────────
 BRAND_DB = {
     "aquashop": {
-        "label": "Aquashop",
-        "color": "#00d4ff",
-        "chip": "chip-aq",
-        "brands": [
-            "Aquarius", "Ariona", "pacific", "filtrex", "barent"
-        ]
+        "label":"Aquashop","color":"#00d4ff","chip":"chip-aq",
+        "brands":["Fairland","InverPro","Inver-X","WarriorX","Maytronics","Dolphin","Liberty",
+                  "Saci","Gemas","Microdos","BSV","BSV Touch","Sopremapool","Flagpool",
+                  "Hidroten","Nature Works","Aquajet"]
     },
     "aqualing": {
-        "label": "Aqualing",
-        "color": "#f5c842",
-        "chip": "chip-al",
-        "brands": [
-            "KPB", "genkinno", "Hayward", "kripsol", "Haogenplast"
-        ]
+        "label":"Aqualing","color":"#f5c842","chip":"chip-al",
+        "brands":["Pontaqua","PoolTrend","Dekortrend","Bestway","Intex","Kokido",
+                  "Hydro Force","HydroForce","Gladiator","Gladiator SUP","Wellis",
+                  "VitalSpa","Azton","Wattsup"]
     },
     "fluidra": {
-        "label": "Fluidra-Kerex",
-        "color": "#ff6b35",
-        "chip": "chip-fl",
-        "brands": [
-            "Astralpool", "Zodiac", "aquaboost"
-        ]
+        "label":"Fluidra-Kerex","color":"#ff6b35","chip":"chip-fl",
+        "brands":["Astralpool","AstralPool","Astral","Zodiac","Bayrol","GRE","Pahlen",
+                  "Speck","ZDS","Kripsol","Fluidra","Kerex","iAquaLink","Omniflex"]
     }
 }
-
-
 
 TIER_CONFIG = {
     "PLATINUM":{"emoji":"🥇","color":"#00d4ff","label":"PLATINUM Partner"},
@@ -460,9 +451,13 @@ Válasz CSAK valid JSON, semmi más:
             "bizonyitekok": ai_data.get("bizonyitekok",{}),
             "javasolt_teendok": ai_data.get("javasolt_teendok",""),
         }
+        st.session_state.last_result = result
         status.update(label="✅ Elemzés kész!", state="complete")
 
     # ── Eredmény ─────────────────────────────────────────────────────
+    result = st.session_state.get("last_result")
+    if not result:
+        st.stop()
     total = result["total"]
     tier = TIER_CONFIG.get(result["tier"], TIER_CONFIG["INAKTÍV"])
 
