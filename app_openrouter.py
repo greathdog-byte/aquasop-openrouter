@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from urllib.parse import urlparse
 
-st.set_page_config(page_title="Aquashop · Partner Scoring (OpenRouter)", page_icon="💧", layout="centered")
+st.set_page_config(page_title="Aquashop · Partner helyezés (OpenRouter)", page_icon="💧", layout="centered")
 
 st.markdown("""
 <style>
