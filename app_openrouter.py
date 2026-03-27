@@ -329,7 +329,7 @@ def openrouter_call(api_key, prompt, retries=2):
 # ── Header ───────────────────────────────────────────────────────────
 st.markdown("""<div style='display:flex;align-items:center;gap:12px;padding:8px 0 24px'>
   <div style='width:36px;height:36px;background:linear-gradient(135deg,#00d4ff,#0055ff);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:Syne;font-weight:800;font-size:16px;color:#fff'>A</div>
-  <span style='font-family:Syne;font-weight:700;font-size:18px;color:#dce8f5'>Aquashop <span style='color:#4a6080;font-weight:400'>/ Partner Scoring</span></span>
+  <span style='font-family:Syne;font-weight:700;font-size:18px;color:#dce8f5'>Aquashop <span style='color:#4a6080;font-weight:400'>/ Partner Helyezés</span></span>
   <div style='margin-left:auto;font-size:10px;letter-spacing:1px;color:#f5c842;background:rgba(245,200,66,0.08);border:1px solid rgba(245,200,66,0.2);border-radius:4px;padding:3px 8px'>AI · OPENROUTER</div>
 </div>""", unsafe_allow_html=True)
 
