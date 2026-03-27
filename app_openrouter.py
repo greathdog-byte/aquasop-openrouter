@@ -49,12 +49,7 @@ BRAND_DB = {
             "nature works", "inverpro", "invereco", "invermaster", "invermax", "isaver", "isaver+", "aquajet mini", "saci optima",
             "saci winner", "mini streamer", "saci bravus", "saci supra", "saci kontra", "saci magnus", "fairland", "x20", "x23", "x26",
             "iphcr", "bpncr", "Comfortline Inverter", "INVERX20", "INVERX23", "INVERX26", "inverX jumbo", "Asin Aqua", "Aseko", "aseko eox",
-            "mp dula smart", "Microdos oxy", "microdos pooltech", "inverclear", "mr. pure premium", "mr. pure pro", "TOUCH EVO", "TOUCH EVO LINK",
-            "XTreme", "Neo Smart", "MICRODOS DUAL SALT", "Pool Gold", "hidroten", "iGarden Central Control", "Blue Ocean Public Pool Control",
-            "Swim Jet", "Inverter Plus páramentesítő", "CAREL Gőzgenerátor", "Dolphin Skimmi", "NIYA TRACKER", "Warrior X60", "Warrior X30",
-            "Warrior Air XA20", "iGarden M1-50", "iGarden M1-80", "iGarden M1 PRO", "LIBERTY 600", "EON 100", "EON 120", "Dolphin S2000",
-            "Dolphin S1000", "Dolphin S3000", "Dolphin M600", "Pool Up", "Dolphin S100", "Dolphin S200", "Dolphin Supreme M5 Bio", "Dolphin WAVE 90i",
-            "Dolphin WAVE 100", "Dolphin WAVE 150", "Dolphin WAVE 200XL", "Dolphin WAVE 300XL", "Aquacorrect", "soprema", "Porocell"
+            "
         ]
     },
     "aqualing": {
@@ -64,10 +59,6 @@ BRAND_DB = {
         "brands": [
             "KPB", "genkinno", "Hayward", "kripsol", "Haogenplast", "pontaqua", "MAXFLO", "powerflo", "geOS PRO", "k-FLO", "e-FLO", "kS-evO",
             "kripsol", "aquaram", "ONDINA", "PRIMe", "kAPR", "kAN", "SILeNSOR PRO", "davey", "e-veCtOR", "NIgeR", "kARPA", "ANtRACItA", "LOtUS", "PegASO",
-            "SWIMCLeAR", "CIkLON", "Aquarite", "HAYWARD Plug N Clear", "Aquarite NEO", "Aquarite Flo", "Hidrolife", "OXILIFe", "BIONet", "Hidroniser",
-            "EASY CHEM SINGLE", "emec", "HSQ", "PONTAQUA MINEO", "IRONSIDE", "PONTAQUA ULTRA", "POLYTROPIC", "Pontaqua SPA", "SUMHEAT", "Pontaqua Aigo",
-            "Pontaqua Poolmaid Plus", "Pontaqua Phantom", "Hayward Sharkvac XL", "Hayward Tigershark 2", "Genkinno ACE 600 Plus", "Pontaqua Blackfish",
-            "Wybot M2", "Pontaqua Blackfish Vision", "Wybot S3"
         ]
     },
     "fluidra": {
@@ -78,13 +69,10 @@ BRAND_DB = {
             "Astralpool", "Zodiac", "aquaboost", "Aiper", "Cellpool", "Cantabric", "Aster", "Atlas", "Bilbao", "Artic", "Artic Plus", "oslo",
             "Emaux", "SMG", "MFS", "Sierra", "Európa", "Praktik", "Dryden Aqua", "DGS", "Victoria smart", "Victoria Plus", "Sena", "Maxim", "Shark",
             "Senext", "MArlin", "Aquaforte", "Mr. Perfect", "Aquark Mr. Silence", "AQUABOOST INVERBASIC", "OPTIMA INVERTER PLUS", "Aquaforte Exclusive",
-            "Aquaforte Smart", "ZODIAC Z550iQ", "Zodiac Z260iQ", "Silver Inverter Pro", "GRE Mini", "cepex", "aquaram", "cgt", "alkor", "elbtal", "epool",
-            "seko", "exactus", "Elite Connect", "ZODIAC Ei2", "E-Next", "Energy Connect", "Smart Next", "Zodiac eXO", "Aquapure", "RESILIENCE", "Sugar Valley",
-            "SCUBA N1600", "SCUBA N1 MAX", "M30 Aquaforte", "M60 Aquaforte", "Aquaforte", "XM44", "XM29", "FreeRider", "ZODIAC ALPHA iQ", "FreeRider iQ", "PIXEL",
-            "CNX", "CNX iQ", "RT3200 Tornax", "SWY 3500 Sweepy", "TRX 8500 IQ", "ARCO", "ARCOMAX", "Kivu", "maxim", "Aral"
         ]
     }
 }
+
 
 
 TIER_CONFIG = {
