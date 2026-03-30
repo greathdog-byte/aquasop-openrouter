@@ -358,13 +358,13 @@ st.markdown("""<div style='display:flex;align-items:center;gap:12px;padding:8px 
 
 # ── Sidebar ──────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 🔑 OpenRouter API kulcs")
-    st.markdown("""Ingyenes kulcs (EU-ban működik):
+    st.markdown(" 🔑 OpenRouter API kulcs")
+    st.markdown(Ingyenes kulcs (EU-ban működik):
 1. [openrouter.ai](https://openrouter.ai) → Sign up
 2. [openrouter.ai/keys](https://openrouter.ai/keys) → Create Key
 3. Streamlit → Settings → Secrets:
         st.divider()
-    st.markdown("### 📋 Márkaadatbázis")
+    st.markdown(" 📋 Márkaadatbázis")
     for src, data in BRAND_DB.items():
         with st.expander(f"{data['label']} ({len(data['brands'])} márka)"):
             st.write(", ".join(data["brands"]))
