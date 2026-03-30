@@ -553,7 +553,7 @@ Válasz CSAK valid JSON, semmi más:
         <span style="color:#ff8c5a;font-weight:700">Fluidra-Kerex {fl_pct}% ({fl})</span>
       </div>
       <div class="ratio-bar">{seg(aq_pct,'seg-aq')}{seg(al_pct,'seg-al')}{seg(fl_pct,'seg-fl')}</div>
-    </div>""", unsafe_allow_html=True)
+    </div>, unsafe_allow_html=True)
 
     # Márkák chip-ekben
     chips = ""
