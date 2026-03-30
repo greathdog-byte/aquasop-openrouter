@@ -524,7 +524,7 @@ Válasz CSAK valid JSON, semmi más:
         <div class="score-big">{total}</div>
         <div>
           <div class="tier-badge" style="color:{tier['color']}">{tier['emoji']} {tier['label']}</div>
-          <div style="font-size:12px;color:#7a9fc0;font-family:monospace">{result['partner_neve']} · {domain}</div>
+          <div style="font-size:12px;color:#7a9fc0;font-family:monospace">{result['partner_neve']} / {domain}</div>
           <div style="font-size:13px;color:#c8d8f0;margin-top:6px;max-width:480px">{result['osszefoglalo']}</div>
         </div>
       </div>
