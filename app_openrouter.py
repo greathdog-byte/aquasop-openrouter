@@ -218,7 +218,7 @@ def check_one_brand(base, brand):
                 t.decompose()
             page = soup.get_text()
             
-            # Ha a keresési oldal ugyanolyan mint a főoldal → a webshop nem tud keresni
+            # Ha a keresési oldal ugyanolyan mint a főoldal  a webshop nem tud keresni
             page_fp = hash(page[:500])
             if home_fp and page_fp == home_fp:
                 continue
@@ -361,8 +361,8 @@ with st.sidebar:
     st.markdown(" 🔑 OpenRouter API kulcs")
     st.markdown(Ingyenes kulcs (EU-ban működik):
 1. [openrouter.ai](https://openrouter.ai)  Sign up
-2. [openrouter.ai/keys](https://openrouter.ai/keys) → Create Key
-3. Streamlit → Settings → Secrets:
+2. [openrouter.ai/keys](https://openrouter.ai/keys)  Create Key
+3. Streamlit  Settings  Secrets:
         st.divider()
     st.markdown(" 📋 Márkaadatbázis")
     for src, data in BRAND_DB.items():
@@ -370,20 +370,20 @@ with st.sidebar:
             st.write(", ".join(data["brands"]))
 
 # ── Fő tartalom ──────────────────────────────────────────────────────
-st.markdown("<h1 style='font-family:Syne;font-size:32px;font-weight:800;color:#dce8f5;margin-bottom:4px'>Domain → Márkaösszetétel</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-family:Syne;font-size:32px;font-weight:800;color:#dce8f5;margin-bottom:4px'>Domain  Márkaösszetétel</h1>", unsafe_allow_html=True)
 st.markdown("<p style='color:#7a9fc0;margin-bottom:24px'>Add meg a webshop domain nevét.</p>", unsafe_allow_html=True)
 
 col1, col2 = st.columns([4,1])
 with col1:
     domain_input = st.text_input("", placeholder="pl. aquashop.hu", label_visibility="collapsed")
 with col2:
-    scan_btn = st.button("Elemzés →", type="primary", use_container_width=True)
+    scan_btn = st.button("Elemzés ", type="primary", use_container_width=True)
 
 # ── Elemzés ──────────────────────────────────────────────────────────
 if scan_btn and domain_input:
     api_key = get_api_key()
     if not api_key:
-        st.error("⚠️ OpenRouter API kulcs hiányzik! Streamlit → Settings → Secrets → OPENROUTER_API_KEY")
+        st.error("⚠️ OpenRouter API kulcs hiányzik! Streamlit Settings  Secrets OPENROUTER_API_KEY")
         st.stop()
 
     raw = domain_input.strip()
