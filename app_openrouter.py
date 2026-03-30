@@ -77,9 +77,6 @@ DIM_DEFS = [
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# Cache a főoldalak fingerprintjéhez
-_homepage_fp = {}
-
 # ── API kulcs ────────────────────────────────────────────────────────
 def get_api_key():
     try:
@@ -130,184 +127,144 @@ def get_sitemap_text(base):
     return ""
 
 def get_homepage_fingerprint(base):
-    """Főoldal szöveg hash - a keresési oldal és főoldal megkülönböztetéséhez"""
+    """Főoldal szöveg hash – ha a keresési oldal ugyanez, nem valódi találat."""
     try:
         r = requests.get(base, headers=HEADERS, timeout=7)
         soup = BeautifulSoup(r.text, "html.parser")
-        # Csak a body tartalmát nézzük
-        body = soup.find('body')
-        if body:
-            for t in body(["nav", "footer", "header", "script", "style"]):
-                t.decompose()
-            text = body.get_text()[:500]
-        else:
-            for t in soup(["nav", "footer", "header", "script", "style"]):
-                t.decompose()
-            text = soup.get_text()[:500]
+        for t in soup(["nav","footer","header","script","style"]):
+            t.decompose()
+        text = soup.get_text()[:500]
         return hash(text)
     except:
         return None
 
+# Főoldal fingerprint cache
+_homepage_fp = {}
+
 def check_one_brand(base, brand):
     """
-    Márka keresése a webshopban - LAZA ELLENŐRZÉS
-    Visszatér True-val ha a márka jelen van
+    Egy márka keresése a webshopban.
+    Visszatér True-val ha valódi terméktalálat van, False-szal ha nincs.
     """
     b = brand.lower()
     b_slug = b.replace(" ", "-")
     b_nospace = b.replace(" ", "")
-    
-    # Főoldal fingerprint (cache)
+
+    # Főoldal fingerprint (egyszer töltjük le, cache-eljük)
     if base not in _homepage_fp:
         _homepage_fp[base] = get_homepage_fingerprint(base)
     home_fp = _homepage_fp[base]
-    
-    no_result_phrases = ["nincs találat", "no results", "0 termék", "nem található",
-                         "0 találat", "nincsenek termékek", "nincs ilyen termék"]
-    
-    # 1. Keresés a márka aloldalon (ez a legvalószínűbb)
-    for direct_url in [
-        f"{base}/marka/{b_slug}",
-        f"{base}/marka/{b}",
-        f"{base}/termekek/marka/{b_slug}",
-        f"{base}/brand/{b_slug}",
-        f"{base}/márka/{b_slug}",
-        f"{base}/termekek/{b_slug}",
-        f"{base}/kategoria/{b_slug}",
-        f"{base}/c/{b_slug}",
-        f"{base}/{b_slug}",
-        f"{base}/gyarto/{b_slug}",
-        f"{base}/gyártó/{b_slug}",
-    ]:
-        try:
-            r = requests.get(direct_url, headers=HEADERS, timeout=5)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                for t in soup(["nav", "footer", "header", "script", "style"]):
-                    t.decompose()
-                page = soup.get_text()
-                
-                # Ne legyen ugyanaz mint a főoldal
-                if home_fp and hash(page[:500]) == home_fp:
-                    continue
-                
-                page_lower = page.lower()
-                # Ha a márka szerepel a szövegben, valószínűleg jó
-                if b in page_lower or b_slug in page_lower:
-                    return True
-        except:
-            pass
-    
-    # 2. Belső kereső - LAZA ELLENŐRZÉS (elég ha szerepel a márka)
+
+    no_result_phrases = ["nincs találat","no results","0 termék","nem található",
+                         "0 találat","nincsenek termékek","nincs ilyen termék"]
+    buy_signals = ["ft","kosár","cart","rendel","db ","darab","huf"]
+
+    # 1. Webshop belső keresője
     for search_url in [
-        f"{base}/?s={quote(brand)}",
-        f"{base}/?search={quote(brand)}",
-        f"{base}/search?q={quote(brand)}",
-        f"{base}/?q={quote(brand)}",
-        f"{base}/kereses/?q={quote(brand)}",
-        f"{base}/termekek/?search={quote(brand)}",
-        f"{base}/search/{quote(brand)}",
-        f"{base}/keresés/{quote(brand)}",
+        f"{base}/?search={requests.utils.quote(brand)}",
+        f"{base}/search?q={requests.utils.quote(brand)}",
+        f"{base}/?q={requests.utils.quote(brand)}",
+        f"{base}/kereses/?q={requests.utils.quote(brand)}",
+        f"{base}/termekek/?search={requests.utils.quote(brand)}",
     ]:
         try:
             r = requests.get(search_url, headers=HEADERS, timeout=7)
             if r.status_code != 200:
                 continue
             soup = BeautifulSoup(r.text, "html.parser")
-            for t in soup(["nav", "footer", "header", "script", "style"]):
+            for t in soup(["nav","footer","header","script","style"]):
                 t.decompose()
             page = soup.get_text()
-            
-            # Ha a keresési oldal ugyanolyan mint a főoldal  a webshop nem tud keresni
+
+            # Ha a keresési oldal ugyanolyan mint a főoldal → a webshop nem tud keresni
             page_fp = hash(page[:500])
             if home_fp and page_fp == home_fp:
                 continue
-            
+
             page_lower = page.lower()
-            
+
             # "Nincs találat" kizárása
             if any(x in page_lower for x in no_result_phrases):
                 continue
-            
-            # Márkanév előfordulás - elég egyszer is
-            if b in page_lower or b_slug in page_lower or b_nospace in page_lower:
+
+            # Márkanév előfordulásainak száma – legalább 2x kell szerepeljen
+            brand_count = page_lower.count(b) + page_lower.count(b_slug) + page_lower.count(b_nospace)
+            if brand_count >= 2 and any(x in page_lower for x in buy_signals):
                 return True
         except:
             pass
-    
-    # 3. URL direkt ellenőrzés - linkekben keresés
-    try:
-        r = requests.get(base, headers=HEADERS, timeout=7)
-        if r.status_code == 200:
-            # Linkek keresése a főoldalon
-            links = re.findall(r'href=["\']([^"\']+)["\']', r.text)
-            for link in links:
-                if b_slug in link.lower() or b_nospace in link.lower() or b in link.lower():
-                    # Ne legyen "no result" oldal
-                    if "noresult" not in link.lower() and "notfound" not in link.lower():
-                        return True
-    except:
-        pass
-    
+
+    # 2. Közvetlen márka aloldal (URL-ben szerepel a márka)
+    for direct_url in [
+        f"{base}/marka/{b_slug}",
+        f"{base}/termekek/{b_slug}",
+        f"{base}/kategoria/{b_slug}",
+        f"{base}/marka/{b_nospace}",
+    ]:
+        try:
+            r = requests.get(direct_url, headers=HEADERS, timeout=5)
+            if r.status_code != 200:
+                continue
+            # Ne legyen ugyanaz mint a főoldal
+            soup = BeautifulSoup(r.text, "html.parser")
+            for t in soup(["nav","footer","header","script","style"]):
+                t.decompose()
+            page = soup.get_text()
+            if home_fp and hash(page[:500]) == home_fp:
+                continue
+            page_lower = page.lower()
+            brand_count = page_lower.count(b) + page_lower.count(b_slug)
+            if brand_count >= 2 and any(x in page_lower for x in buy_signals):
+                return True
+        except:
+            pass
+
     return False
 
 
 def detect_brands(base, progress_cb=None):
     """
     Teljes márkadetekció minden ismert márkára.
+    progress_cb(current, total, brand_name) – haladás visszajelzés.
     """
-    # Nagyobb corpus a jobb gyorsellenőrzéshez
-    corpus = get_text(base, 15000)
-    corpus += " " + get_sitemap_text(base)
-    
-    # Több oldal letöltése a corpus bővítéséhez
-    important_paths = [
-        "/termekek", "/kategoriak", "/medence", "/spa", "/szivattyu",
-        "/hoszivattyu", "/robot", "/vegyszer", "/pumpa", "/markak",
-        "/marka", "/brands", "/márkák", "/gyártók", "/gyartok",
-        "/markaink", "/partnereink", "/termekek/marka"
-    ]
-    
-    for path in important_paths:
-        corpus += " " + get_text(base+path, 2000)
-    
+    # Előzetesen letöltjük a főoldalt + sitemapot (szöveg alapú gyors ellenőrzés)
+    corpus = get_text(base, 5000) + " " + get_sitemap_text(base)
+    for path in ["/termekek","/kategoriak","/medence","/spa","/szivattyu",
+                 "/hoszivattyu","/robot","/vegyszer","/pumpa"]:
+        corpus += " " + get_text(base+path, 1500)
     corpus_lower = corpus.lower()
-    
-    found = {"aquashop": [], "aqualing": [], "fluidra": []}
-    
+
+    found = {"aquashop":[],"aqualing":[],"fluidra":[]}
+
     # Összes márka listája kategóriával
     all_brands = []
-    for src in ["aquashop", "aqualing", "fluidra"]:
+    for src in ["aquashop","aqualing","fluidra"]:
         for brand in BRAND_DB[src]["brands"]:
             all_brands.append((src, brand))
-    
+
     total = len(all_brands)
-    found_count = 0
-    
-    # Márkák ellenőrzése
+
     for i, (src, brand) in enumerate(all_brands):
         if progress_cb:
             progress_cb(i, total, brand)
-        
+
         b = brand.lower()
-        b_slug = b.replace(" ", "-")
-        b_nospace = b.replace(" ", "")
-        
-        # Gyors ellenőrzés a corpusban
+        b_slug = b.replace(" ","-")
+        b_nospace = b.replace(" ","")
+
+        # Gyors ellenőrzés: benne van-e a már letöltött szövegben?
         if b in corpus_lower or b_slug in corpus_lower or b_nospace in corpus_lower:
             found[src].append(brand)
-            found_count += 1
             continue
-        
-        # Pontos ellenőrzés a webshopban
+
+        # Lassú de pontos: webshop keresőjével ellenőrzés
         if check_one_brand(base, brand):
             found[src].append(brand)
-            found_count += 1
-    
+
     if progress_cb:
-        progress_cb(total, total, f"kész - Találatok: {found_count}/{total}")
-    
-    return found, corpus[:15000]
+        progress_cb(total, total, "kész")
+
+    return found, corpus[:10000]
 
 # ── OpenRouter hívás ─────────────────────────────────────────────────
 MODELS = [
@@ -337,7 +294,7 @@ def ai_call(api_key, prompt):
                     err = str(data["error"].get("message",""))
                     last_err = f"{model}: {err}"
                     if any(x in err for x in ["No endpoints","not found","404"]):
-                        break
+                        break  # következő modell
                     if attempt == 0:
                         time.sleep(5)
                         continue
@@ -373,20 +330,20 @@ OPENROUTER_API_KEY = "sk-or-..."
             st.write(", ".join(data["brands"]))
 
 # ── Fő tartalom ──────────────────────────────────────────────────────
-st.markdown("<h1 style='font-family:Syne;font-size:32px;font-weight:800;color:#dce8f5;margin-bottom:4px'>Domain  Márkaösszetétel</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-family:Syne;font-size:32px;font-weight:800;color:#dce8f5;margin-bottom:4px'>Domain → Márkaösszetétel</h1>", unsafe_allow_html=True)
 st.markdown("<p style='color:#7a9fc0;margin-bottom:24px'>Add meg a webshop domain nevét.</p>", unsafe_allow_html=True)
 
 col1, col2 = st.columns([4,1])
 with col1:
-    domain_input = st.text_input("", placeholder="pl. aquashop.hu", label_visibility="collapsed")
+    domain_input = st.text_input("", placeholder="pl. medencefutar.hu", label_visibility="collapsed")
 with col2:
-    scan_btn = st.button("Elemzés ", type="primary", use_container_width=True)
+    scan_btn = st.button("Elemzés →", type="primary", use_container_width=True)
 
 # ── Elemzés ──────────────────────────────────────────────────────────
 if scan_btn and domain_input:
     api_key = get_api_key()
     if not api_key:
-        st.error("⚠️ OpenRouter API kulcs hiányzik! Streamlit Settings  Secrets OPENROUTER_API_KEY")
+        st.error("⚠️ OpenRouter API kulcs hiányzik! Streamlit → Settings → Secrets → OPENROUTER_API_KEY")
         st.stop()
 
     raw = domain_input.strip()
@@ -395,9 +352,12 @@ if scan_btn and domain_input:
     domain = urlparse(raw).netloc.replace("www.","") or raw
     base = f"https://{domain}"
 
+    # Márka számláló az összes márkához
+    total_brands = sum(len(BRAND_DB[s]["brands"]) for s in BRAND_DB)
+
     with st.status(f"🤖 Elemzés: {domain}...", expanded=True) as status:
 
-        # 1. Márkadetekció
+        # 1. Márkadetekció – Python, valós idejű progress
         st.write("🔍 Webshop letöltése és márkafelismerés...")
         prog_bar = st.progress(0)
         prog_text = st.empty()
@@ -405,8 +365,8 @@ if scan_btn and domain_input:
         def on_progress(current, total, brand_name):
             pct = current / total if total > 0 else 0
             prog_bar.progress(pct)
-            if "kész" in brand_name:
-                prog_text.markdown(f"<span style='color:#00d4ff;font-size:13px'>✓ {brand_name}</span>", unsafe_allow_html=True)
+            if brand_name == "kész":
+                prog_text.markdown(f"<span style='color:#00d4ff;font-size:13px'>✓ Márkaellenőrzés kész ({total} márka)</span>", unsafe_allow_html=True)
             else:
                 prog_text.markdown(f"<span style='color:#7a9fc0;font-size:12px'>🔎 Ellenőrzés: **{brand_name}** ({current}/{total})</span>", unsafe_allow_html=True)
 
@@ -417,46 +377,31 @@ if scan_btn and domain_input:
         prog_bar.empty()
         prog_text.empty()
         st.write(f"✓ Aquashop: {len(found_aq)} | Aqualing: {len(found_al)} | Fluidra: {len(found_fl)}")
-        
-        # Ha kevés Aquashop márkát találtunk, kiírjuk figyelmeztetést
-        if len(found_aq) < 3 and "aquashop" in domain:
-            st.warning(f"⚠️ Csak {len(found_aq)} Aquashop márkát találtam. Lehet, hogy a webshop speciális URL struktúrát használ.")
 
-        # 2. Exkluzív pont (Aquashop márkák száma alapján)
-        aq_score = 0
-        if len(found_aq) >= 8:
-            aq_score = 40
-        elif len(found_aq) >= 5:
-            aq_score = 30
-        elif len(found_aq) >= 3:
-            aq_score = 20
-        elif len(found_aq) >= 1:
-            aq_score = 10
+        # 2. Exkluzív pont (Python számítja)
+        aq_score = (0 if len(found_aq)==0 else
+                    10 if len(found_aq)<=2 else
+                    20 if len(found_aq)<=4 else
+                    30 if len(found_aq)<=7 else 40)
 
         # 3. AI pontozás
         st.write("🤖 AI minőségi pontozás...")
-        
-        # Márkák listázása a promptban
-        aq_list = ", ".join(found_aq[:15]) if found_aq else "nincs"
-        al_list = ", ".join(found_al[:15]) if found_al else "nincs"
-        fl_list = ", ".join(found_fl[:15]) if found_fl else "nincs"
-        
         prompt = f"""Magyar medence/spa webshop elemzése: {domain}
 
 WEBSHOP TARTALOM:
 {corpus[:4000]}
 
-MÁR AZONOSÍTOTT MÁRKÁK (NE VÁLTOZTASD):
-- Aquashop ({len(found_aq)}): {aq_list}
-- Aqualing ({len(found_al)}): {al_list}
-- Fluidra ({len(found_fl)}): {fl_list}
+MÁR AZONOSÍTOTT MÁRKÁK (ne változtasd):
+- Aquashop ({len(found_aq)}): {", ".join(found_aq) or "nincs"}
+- Aqualing ({len(found_al)}): {", ".join(found_al) or "nincs"}
+- Fluidra ({len(found_fl)}): {", ".join(found_fl) or "nincs"}
 
 PONTOZÁS (csak ezeket töltsd ki, a márkákat ne módosítsd):
 - exkluziv_termekek: PONTOSAN {aq_score} (ne változtasd!)
-- kinalat_teljessege max 25: termékkör szélessége, választék
-- tartalmi_minoseg max 20: termékleírások, képek minősége
-- webshop_aktivitas max 10: friss árak, készletinfo, akciók
-- seo_elkotelezettsege max 5: SEO elemek, kulcsszavak
+- kinalat_teljessege max 25: termékkör szélessége
+- tartalmi_minoseg max 20: leírások, képek minősége
+- webshop_aktivitas max 10: friss árak, készlet
+- seo_elkotelezettsege max 5: kulcsszavak
 
 Válasz CSAK valid JSON, semmi más:
 {{"partner_neve":"string","osszefoglalo":"2-3 mondat magyarul","scores":{{"exkluziv_termekek":{aq_score},"kinalat_teljessege":0,"tartalmi_minoseg":0,"webshop_aktivitas":0,"seo_elkotelezettsege":0}},"bizonyitekok":{{"talalt_termekek":"string","kinalat_szelessege":"string","tartalom_minosege":"string","aktivitas_frissesseg":"string"}},"javasolt_teendok":"string"}}"""
@@ -470,9 +415,8 @@ Válasz CSAK valid JSON, semmi más:
             st.stop()
 
         # JSON parse
-        clean = re.sub(r'```json|```', '', raw_text).strip()
-        bs = clean.find('{')
-        be = clean.rfind('}')
+        clean = re.sub(r'```json|```','',raw_text).strip()
+        bs = clean.find('{'); be = clean.rfind('}')
         if bs == -1:
             status.update(label="❌ JSON hiba", state="error")
             st.error("Érvénytelen AI válasz. Próbáld újra!")
@@ -486,36 +430,31 @@ Válasz CSAK valid JSON, semmi más:
 
         # Eredmény összerakása
         scores = ai_data.get("scores", {})
-        scores["exkluziv_termekek"] = aq_score
+        scores["exkluziv_termekek"] = aq_score  # Python érték felülírja
         calc_total = sum(int(v) for v in scores.values())
 
-        if calc_total >= 85:
-            tier_key = "PLATINUM"
-        elif calc_total >= 65:
-            tier_key = "GOLD"
-        elif calc_total >= 40:
-            tier_key = "SILVER"
-        elif calc_total >= 20:
-            tier_key = "BASIC"
-        else:
-            tier_key = "INAKTÍV"
+        if calc_total >= 85:   tier_key = "PLATINUM"
+        elif calc_total >= 65: tier_key = "GOLD"
+        elif calc_total >= 40: tier_key = "SILVER"
+        elif calc_total >= 20: tier_key = "BASIC"
+        else:                  tier_key = "INAKTÍV"
 
         result = {
             "domain": domain,
             "partner_neve": ai_data.get("partner_neve", domain),
-            "osszefoglalo": ai_data.get("osszefoglalo", ""),
+            "osszefoglalo": ai_data.get("osszefoglalo",""),
             "scores": scores,
             "total": min(100, calc_total),
             "tier": tier_key,
-            "markak": {"aquashop": found_aq, "aqualing": found_al, "fluidra": found_fl, "egyeb": []},
-            "markaok_szama": {"aquashop": len(found_aq), "aqualing": len(found_al), "fluidra": len(found_fl), "egyeb": 0},
-            "bizonyitekok": ai_data.get("bizonyitekok", {}),
-            "javasolt_teendok": ai_data.get("javasolt_teendok", ""),
+            "markak": {"aquashop":found_aq,"aqualing":found_al,"fluidra":found_fl,"egyeb":[]},
+            "markaok_szama": {"aquashop":len(found_aq),"aqualing":len(found_al),"fluidra":len(found_fl),"egyeb":0},
+            "bizonyitekok": ai_data.get("bizonyitekok",{}),
+            "javasolt_teendok": ai_data.get("javasolt_teendok",""),
         }
         st.session_state.last_result = result
         status.update(label="✅ Elemzés kész!", state="complete")
 
-    # ── Eredmény megjelenítés ─────────────────────────────────────────
+    # ── Eredmény ─────────────────────────────────────────────────────
     result = st.session_state.get("last_result")
     if not result:
         st.stop()
@@ -527,7 +466,7 @@ Válasz CSAK valid JSON, semmi más:
         <div class="score-big">{total}</div>
         <div>
           <div class="tier-badge" style="color:{tier['color']}">{tier['emoji']} {tier['label']}</div>
-          <div style="font-size:12px;color:#7a9fc0;font-family:monospace">{result['partner_neve']} / {domain}</div>
+          <div style="font-size:12px;color:#7a9fc0;font-family:monospace">{result['partner_neve']} · {domain}</div>
           <div style="font-size:13px;color:#c8d8f0;margin-top:6px;max-width:480px">{result['osszefoglalo']}</div>
         </div>
       </div>
@@ -536,17 +475,12 @@ Válasz CSAK valid JSON, semmi más:
     # Márka arány
     st.markdown('<div class="section-label">▸ Márkaösszetétel & versenytárs arány</div>', unsafe_allow_html=True)
     mc = result["markaok_szama"]
-    aq = mc["aquashop"]
-    al = mc["aqualing"]
-    fl = mc["fluidra"]
-    tb = max(aq + al + fl, 1)
-    aq_pct = round(aq / tb * 100)
-    al_pct = round(al / tb * 100)
-    fl_pct = 100 - aq_pct - al_pct
+    aq=mc["aquashop"]; al=mc["aqualing"]; fl=mc["fluidra"]
+    tb = max(aq+al+fl, 1)
+    aq_pct=round(aq/tb*100); al_pct=round(al/tb*100); fl_pct=100-aq_pct-al_pct
 
     def seg(pct, cls):
-        if pct <= 0:
-            return ''
+        if pct <= 0: return ''
         return f'<div class="seg {cls}" style="width:{pct}%">{str(pct)+"%" if pct>7 else ""}</div>'
 
     st.markdown(f"""<div class="ratio-bar-container">
@@ -556,9 +490,8 @@ Válasz CSAK valid JSON, semmi más:
         <span style="color:#ff8c5a;font-weight:700">Fluidra-Kerex {fl_pct}% ({fl})</span>
       </div>
       <div class="ratio-bar">{seg(aq_pct,'seg-aq')}{seg(al_pct,'seg-al')}{seg(fl_pct,'seg-fl')}</div>
-    </div>, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
 
-    # Márkák chip-ekben
     chips = ""
     for src, cls in [("aquashop","chip-aq"),("aqualing","chip-al"),("fluidra","chip-fl")]:
         for b in result["markak"].get(src,[]):
