@@ -270,14 +270,18 @@ def detect_brands(base, progress_cb=None):
 MODELS = [
     "meta-llama/llama-3.3-70b-instruct:free",
     "meta-llama/llama-4-scout:free",
+    "meta-llama/llama-4-maverick:free",
+    "deepseek/deepseek-r1:free",
     "deepseek/deepseek-chat:free",
+    "qwen/qwen3-8b:free",
     "mistralai/mistral-7b-instruct:free",
-    "google/gemma-3-27b-it:free",
 ]
 
 def ai_call(api_key, prompt):
     import time
     last_err = ""
+    skip_phrases = ["No endpoints","not found","404","Provider returned error",
+                    "rate limit","quota","overloaded","unavailable"]
     for model in MODELS:
         for attempt in range(2):
             try:
@@ -287,23 +291,26 @@ def ai_call(api_key, prompt):
                              "HTTP-Referer":"https://aquashop-scoring.streamlit.app"},
                     json={"model":model,"messages":[{"role":"user","content":prompt}],
                           "temperature":0.1,"max_tokens":1500},
-                    timeout=45
+                    timeout=50
                 )
                 data = r.json()
                 if "error" in data:
                     err = str(data["error"].get("message",""))
                     last_err = f"{model}: {err}"
-                    if any(x in err for x in ["No endpoints","not found","404"]):
-                        break  # következő modell
-                    if attempt == 0:
-                        time.sleep(5)
+                    # Bármilyen hiba → következő modell
+                    if attempt == 0 and not any(x.lower() in err.lower() for x in skip_phrases):
+                        time.sleep(4)
                         continue
-                    break
-                return data["choices"][0]["message"]["content"], model
+                    break  # következő modell
+                content = data.get("choices",[{}])[0].get("message",{}).get("content","")
+                if content:
+                    return content, model
+                last_err = f"{model}: üres válasz"
+                break
             except Exception as e:
                 last_err = str(e)
                 if attempt == 0:
-                    time.sleep(4)
+                    time.sleep(3)
     raise Exception(f"Minden modell elérhetetlen: {last_err}")
 
 # ── Header ───────────────────────────────────────────────────────────
