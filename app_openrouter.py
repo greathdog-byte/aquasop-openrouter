@@ -48,13 +48,13 @@ DIM_DEFS = [
 ]
 
 MODELS = [
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "meta-llama/llama-4-scout:free",
     "meta-llama/llama-4-maverick:free",
+    "meta-llama/llama-4-scout:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
     "deepseek/deepseek-r1:free",
-    "deepseek/deepseek-chat:free",
-    "mistralai/mistral-7b-instruct:free",
-    "tngtech/deepseek-r1t-chimera:free",
+    "deepseek/deepseek-chat-v3-0324:free",
+    "mistralai/mistral-small-3.1-24b-instruct:free",
+    "nvidia/llama-3.1-nemotron-nano-8b-v1:free",
 ]
 
 # ── Stílus ────────────────────────────────────────────────────────────
