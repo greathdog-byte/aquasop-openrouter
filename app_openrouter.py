@@ -47,15 +47,48 @@ DIM_DEFS = [
     ("seo_elkotelezettsege", "SEO elkötelezettsége", 5),
 ]
 
-MODELS = [
+# Fallback lista ha az API lekérdezés nem sikerül
+MODELS_FALLBACK = [
     "meta-llama/llama-4-maverick:free",
     "meta-llama/llama-4-scout:free",
     "meta-llama/llama-3.3-70b-instruct:free",
     "deepseek/deepseek-r1:free",
     "deepseek/deepseek-chat-v3-0324:free",
     "mistralai/mistral-small-3.1-24b-instruct:free",
-    "nvidia/llama-3.1-nemotron-nano-8b-v1:free",
 ]
+
+@st.cache_data(ttl=3600)  # 1 óránként frissül
+def get_free_models(api_key):
+    """Lekérdezi az OpenRouter-től az aktuálisan elérhető ingyenes modelleket."""
+    try:
+        r = requests.get(
+            "https://openrouter.ai/api/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10
+        )
+        if r.status_code != 200:
+            return MODELS_FALLBACK
+        data = r.json().get("data", [])
+        free = [
+            m["id"] for m in data
+            if m.get("pricing", {}).get("prompt") in ("0", "0.0", 0, 0.0)
+            and ":free" in m.get("id", "")
+        ]
+        # Preferált sorrendű szűrés
+        preferred = ["llama-4-maverick", "llama-4-scout", "llama-3.3-70b",
+                     "deepseek-r1", "deepseek-chat", "mistral-small", "mistral-7b"]
+        ordered = []
+        for pref in preferred:
+            for m in free:
+                if pref in m and m not in ordered:
+                    ordered.append(m)
+        # A maradék szabad modellek hozzáadása
+        for m in free:
+            if m not in ordered:
+                ordered.append(m)
+        return ordered[:8] if ordered else MODELS_FALLBACK
+    except:
+        return MODELS_FALLBACK
 
 # ── Stílus ────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Aquashop · Partner Scoring", page_icon="💧", layout="centered")
@@ -157,8 +190,9 @@ def collect_webshop_text(base):
 # ── OpenRouter hívás ──────────────────────────────────────────────────
 def ai_score(api_key, prompt):
     import time
+    models = get_free_models(api_key)
     last_err = ""
-    for model in MODELS:
+    for model in models:
         try:
             r = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions",
