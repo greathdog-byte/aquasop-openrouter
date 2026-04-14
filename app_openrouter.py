@@ -52,7 +52,9 @@ MODELS = [
     "meta-llama/llama-4-scout:free",
     "meta-llama/llama-4-maverick:free",
     "deepseek/deepseek-r1:free",
-    "qwen/qwen3-8b:free",
+    "deepseek/deepseek-chat:free",
+    "mistralai/mistral-7b-instruct:free",
+    "tngtech/deepseek-r1t-chimera:free",
 ]
 
 # ── Stílus ────────────────────────────────────────────────────────────
@@ -170,10 +172,12 @@ def ai_score(api_key, prompt):
             )
             data = r.json()
             if "error" in data:
-                last_err = f"{model}: {data['error'].get('message','')}"
+                msg = str(data["error"].get("message",""))
+                last_err = f"{model}: {msg}"
+                # Mindig folytatjuk a következő modellel
                 continue
             text = data.get("choices",[{}])[0].get("message",{}).get("content","")
-            if text:
+            if text and len(text) > 10:
                 return text, model
             last_err = f"{model}: üres válasz"
         except Exception as e:
